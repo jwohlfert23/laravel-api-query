@@ -1,0 +1,42 @@
+{
+  "name": "jwohlfert23/laravel-api-query",
+  "description": "Provides laravel scope to build query from request query params",
+  "keywords": [
+    "laravel",
+    "api",
+    "query"
+  ],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Jack Wohlfert",
+      "email": "jack.wohlfert@gmail.com"
+    }
+  ],
+  "repositories": [
+    {
+      "type": "git",
+      "url": "https://github.com/jwohlfert23/laravel-api-query.git"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Jwohlfert23\\LaravelApiQuery\\": "src/"
+    }
+  },
+  "require": {
+    "php": ">=5.5.9",
+    "nesbot/carbon": "~2",
+    "illuminate/database": ">=6.0",
+    "illuminate/support": ">=6.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^8.5",
+    "orchestra/testbench": "^4.0"
+  },
+  "config": {
+    "preferred-install": "dist"
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}
