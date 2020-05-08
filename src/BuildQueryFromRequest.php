@@ -49,7 +49,7 @@ trait BuildQueryFromRequest
 
         //Only need to join if we want to filter/sort
         if (request()->query('filter') || request()->query('sort')) {
-            $this->getJoins($builder);
+            $this->applyJoins($builder);
         }
 
         $this->applyFilters($builder);
@@ -110,7 +110,7 @@ trait BuildQueryFromRequest
     }
 
 
-    protected function getJoins(Builder $builder)
+    protected function applyJoins(Builder $builder)
     {
         $columns = collect(QueryHelpers::getColumnsNeeded())
             ->filter(function ($column) {
