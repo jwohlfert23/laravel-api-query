@@ -2,7 +2,7 @@
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
-use Jwohlfert23\LaravelApiQuery\Models\Model;
+use Models\Model;
 use Orchestra\Testbench\TestCase;
 
 class QueryBuilderTest extends TestCase

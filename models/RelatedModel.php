@@ -1,4 +1,4 @@
-<?php namespace Jwohlfert23\LaravelApiQuery\Models;
+<?php namespace Models;
 
 use Jwohlfert23\LaravelApiQuery\BuildQueryFromRequest;
 

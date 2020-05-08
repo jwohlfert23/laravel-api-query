@@ -55,8 +55,12 @@ trait BuildQueryFromRequest
         $this->applyFilters($builder);
         $this->applySorts($builder);
 
-        if (method_exists($this, 'scopeSearch')) {
-            if ($query = request()->input('query')) {
+        if ($query = request()->query('query')) {
+            if (method_exists($this, 'search')) {
+                return static::search($query)->query(function ($builder) {
+                    $builder->with(QueryHelpers::getWiths());
+                });
+            } elseif (method_exists($this, 'scopeSearch')) {
                 $builder->search($query);
             }
         }
