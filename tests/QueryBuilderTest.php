@@ -10,7 +10,6 @@ class QueryBuilderTest extends TestCase
 
     public function testAll()
     {
-
         $request = Request::create('http://test.com/api?with=related&sort=-name,date&filter[name]=jack&filter[related.id][gt]=0&filter[related.name][contains]=my');
         $this->instance('request', $request);
 
@@ -46,5 +45,22 @@ class QueryBuilderTest extends TestCase
         $this->assertEquals((string)$query->wheres[2]['column'], 'related_models.name');
         $this->assertEquals($query->wheres[2]['value'], '%my%');
         $this->assertEquals($query->wheres[2]['operator'], 'like');
+    }
+
+    public function testQuery()
+    {
+        $request = Request::create('http://test.com/api?with=related&query=jack');
+        $this->instance('request', $request);
+
+        /** @var \Illuminate\Database\Eloquent\Builder $builder */
+        $builder = Model::query()->buildFromRequest();
+        /** @var Builder $query */
+        $query = $builder->getQuery();
+
+        // 2 columns to search by
+        $subquery = $query->wheres[0]['query'];
+        $this->assertCount(2, $subquery->wheres);
+        $this->assertEquals($subquery->wheres[0]['column'], 'models.name');
+        $this->assertEquals($subquery->wheres[1]['column'], 'models.id');
     }
 }
