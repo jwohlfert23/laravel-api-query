@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOneOrMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -145,6 +146,8 @@ trait BuildQueryFromRequest
                 $query = array_values($query)[0];
             }
 
+            $query = $this->normalizeQueryString($key, $query);
+
             switch ($operator) {
                 case 'eq':
                     $builder->where($column, $query);
@@ -161,9 +164,6 @@ trait BuildQueryFromRequest
                 case 'lte':
                     $builder->where($column, '<=', $query);
                     break;
-                case 'date':
-                    $builder->where($column, Carbon::parse($query)->toDateString());
-                    break;
                 case 'contains':
                     $builder->where($column, 'like', "%$query%");
                     break;
@@ -171,6 +171,53 @@ trait BuildQueryFromRequest
                     abort(422, 'Invalid filter operator');
             }
         }
+    }
+
+    public function normalizeQueryString($key, $query)
+    {
+        if (!is_string($query)) {
+            return $query;
+        }
+
+        if ($query === 'true') {
+            return 1;
+        }
+        if ($query === 'false') {
+            return 0;
+        }
+
+        // Handle Relationships
+        if (strpos($key, '.') !== false) {
+            $path = explode('.', $key);
+            $key = array_pop($path);
+            $cursor = $this;
+            while ($relationship = array_shift($path)) {
+                $methodName = Str::camel($relationship);
+                if (!method_exists($cursor, $methodName)) {
+                    return $query;
+                }
+                $cursor = $cursor->{$methodName}()->getRelated();
+            }
+            return $cursor->normalizeQueryString($key, $query);
+        }
+
+        $cast = Arr::get($this->getCasts(), $key);
+        if (!$cast) {
+            return $query;
+        }
+
+        list($castType, $params) = array_pad(explode(':', $cast), 2, null);
+        switch ($castType) {
+            case 'date':
+            case 'datetime':
+                $defaultDate = $castType === 'date' ? 'Y-m-d' : 'Y-m-d H:i:s';
+                return Carbon::parse($query)->format($params ?: $defaultDate);
+            case 'bool':
+            case 'boolean':
+                return empty($query) ? 0 : 1;
+        }
+
+        return $query;
     }
 
 

@@ -7,6 +7,12 @@ class Model extends \Illuminate\Database\Eloquent\Model
 {
     use BuildQueryFromRequest, Searchable;
 
+    protected $casts = [
+        'bool' => 'bool',
+        'date' => 'date',
+        'custom_date' => 'date:Y-m'
+    ];
+
     protected $searchable = [
         'columns' => [
             'name' => 10,
