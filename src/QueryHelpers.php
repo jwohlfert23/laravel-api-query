@@ -3,14 +3,19 @@
 namespace Jwohlfert23\LaravelApiQuery;
 
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 
 class QueryHelpers
 {
     public static function getWiths()
     {
-        return array_map(function ($i) {
-            return trim($i);
-        }, explode(',', request()->input('with')));
+        return collect(explode(',', request()->input('with')))
+            ->map(function ($i) {
+                return Str::camel(trim($i));
+            })
+            ->filter()
+            ->unique()
+            ->all();
     }
 
     public static function getFilters()
