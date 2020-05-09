@@ -167,6 +167,14 @@ trait BuildQueryFromRequest
                 case 'contains':
                     $builder->where($column, 'like', "%$query%");
                     break;
+                case 'date':
+                    $column = DB::raw('DATE(' . (string)$column . ')');
+                    $builder->where($column, '=', Carbon::parse($query)->toDateString());
+                    break;
+                case 'year':
+                    $column = DB::raw('YEAR(' . (string)$column . ')');
+                    $builder->where($column, '=', Carbon::parse($query)->year);
+                    break;
                 default:
                     abort(422, 'Invalid filter operator');
             }
