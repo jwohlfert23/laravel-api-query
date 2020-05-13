@@ -152,6 +152,9 @@ trait BuildQueryFromRequest
                 case 'eq':
                     $builder->where($column, $query);
                     break;
+                case 'not':
+                    $builder->where($column, '!=', $query);
+                    break;
                 case 'gt':
                     $builder->where($column, '>', $query);
                     break;
@@ -163,6 +166,16 @@ trait BuildQueryFromRequest
                     break;
                 case 'lte':
                     $builder->where($column, '<=', $query);
+                    break;
+                case 'between':
+                    list($start, $end) = array_pad(explode(',', $query), 2, null);
+                    $builder->whereBetween($column, [$start, $end]);
+                    break;
+                case 'in':
+                    $builder->whereIn($column, array_filter(explode(',', $query)));
+                    break;
+                case 'nin':
+                    $builder->whereNotIn($column, array_filter(explode(',', $query)));
                     break;
                 case 'contains':
                     $builder->where($column, 'like', "%$query%");
