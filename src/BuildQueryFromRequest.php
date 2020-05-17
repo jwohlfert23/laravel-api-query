@@ -244,10 +244,17 @@ trait BuildQueryFromRequest
 
     public function applyWiths(Builder $builder)
     {
-        foreach (QueryHelpers::getWiths() as $with) {
-            if (method_exists($this, $with))
-                $builder->with($with);
-        }
+        $withs = QueryHelpers::getWiths()->filter(function ($with) {
+            return method_exists($this, $with);
+        })->all();
+
+        $withCounts = QueryHelpers::getWithCounts()->filter(function ($with) {
+            return method_exists($this, $with);
+        })->all();
+
+        $builder->with($withs);
+        $builder->withCount($withCounts);
+
         return $this;
     }
 }

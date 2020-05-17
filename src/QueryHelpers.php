@@ -7,6 +7,9 @@ use Illuminate\Support\Str;
 
 class QueryHelpers
 {
+    /**
+     * @return \Illuminate\Support\Collection
+     */
     public static function getWiths()
     {
         return collect(explode(',', request()->input('with')))
@@ -14,8 +17,20 @@ class QueryHelpers
                 return Str::camel(trim($i));
             })
             ->filter()
-            ->unique()
-            ->all();
+            ->unique();
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection
+     */
+    public static function getWithCounts()
+    {
+        return collect(explode(',', request()->input('with_count')))
+            ->map(function ($i) {
+                return Str::camel(trim($i));
+            })
+            ->filter()
+            ->unique();
     }
 
     public static function getFilters()
