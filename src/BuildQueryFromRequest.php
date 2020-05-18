@@ -59,7 +59,7 @@ trait BuildQueryFromRequest
         if ($query = request()->query('query')) {
             if (method_exists($this, 'search')) {
                 return static::search($query)->query(function ($builder) {
-                    $builder->with(QueryHelpers::getWiths());
+                    $builder->with(QueryHelpers::getWiths()->all());
                 });
             } elseif (method_exists($this, 'scopeSearch')) {
                 $builder->search($query);
