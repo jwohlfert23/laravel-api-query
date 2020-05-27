@@ -233,7 +233,7 @@ trait BuildQueryFromRequest
                 }
                 $cursor = $cursor->{$methodName}()->getRelated();
             }
-            return $cursor->normalizeQueryString($key, $query);
+            return $cursor->normalizeQueryStringSingular($key, $query);
         }
 
         $cast = Arr::get($this->getCasts(), $key);
