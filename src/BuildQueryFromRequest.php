@@ -138,61 +138,62 @@ trait BuildQueryFromRequest
 
     protected function applyFilters(Builder $builder)
     {
-        foreach (QueryHelpers::getFilters() as $key => $query) {
+        foreach (QueryHelpers::getFilters() as $key => $queries) {
             $column = $this->getSortByExpression($key);
-            $operator = 'eq';
-            if (is_array($query)) {
-                $operator = array_keys($query)[0];
-                $query = array_values($query)[0];
+            if (!is_array($queries)) {
+                $queries = ['eq' => $queries];
             }
-            $query = $this->normalizeQueryString($key, $operator, $query);
 
-            switch ($operator) {
-                case 'eq':
-                    $builder->where($column, $query);
-                    break;
-                case 'not':
-                    $builder->where($column, '!=', $query);
-                    break;
-                case 'gt':
-                    $builder->where($column, '>', $query);
-                    break;
-                case 'lt':
-                    $builder->where($column, '<', $query);
-                    break;
-                case 'gte':
-                    $builder->where($column, '>=', $query);
-                    break;
-                case 'lte':
-                    $builder->where($column, '<=', $query);
-                    break;
-                case 'contains':
-                    $builder->where($column, 'like', "%$query%");
-                    break;
-                case 'date':
-                    $column = DB::raw('DATE(' . (string)$column . ')');
-                    $builder->where($column, '=', Carbon::parse($query)->tz(config('app.timezone'))->toDateString());
-                    break;
-                case 'year':
-                    $column = DB::raw('YEAR(' . (string)$column . ')');
-                    $builder->where($column, '=', Carbon::parse($query)->tz(config('app.timezone'))->year);
-                    break;
-                // Expects Array here and below
-                case 'between':
-                    list($start, $end) = array_pad($query, 2, null);
-                    if ($end && $this->isDateAttribute($key)) {
-                        $end = Carbon::parse($end)->tz(config('app.timezone'))->endOfDay()->toDateTimeString();
-                    }
-                    $builder->whereBetween($column, [$start, $end]);
-                    break;
-                case 'in':
-                    $builder->whereIn($column, array_filter($query));
-                    break;
-                case 'nin':
-                    $builder->whereNotIn($column, array_filter($query));
-                    break;
-                default:
-                    abort(422, 'Invalid filter operator');
+            foreach ($queries as $operator => $query) {
+                $query = $this->normalizeQueryString($key, $operator, $query);
+
+                switch ($operator) {
+                    case 'eq':
+                        $builder->where($column, $query);
+                        break;
+                    case 'not':
+                        $builder->where($column, '!=', $query);
+                        break;
+                    case 'gt':
+                        $builder->where($column, '>', $query);
+                        break;
+                    case 'lt':
+                        $builder->where($column, '<', $query);
+                        break;
+                    case 'gte':
+                        $builder->where($column, '>=', $query);
+                        break;
+                    case 'lte':
+                        $builder->where($column, '<=', $query);
+                        break;
+                    case 'contains':
+                        $builder->where($column, 'like', "%$query%");
+                        break;
+                    case 'date':
+                        $column = DB::raw('DATE(' . (string)$column . ')');
+                        $builder->where($column, '=', Carbon::parse($query)->tz(config('app.timezone'))->toDateString());
+                        break;
+                    case 'year':
+                        $column = DB::raw('YEAR(' . (string)$column . ')');
+                        $builder->where($column, '=', Carbon::parse($query)->tz(config('app.timezone'))->year);
+                        break;
+                    // Expects Array here and below
+                    case 'between':
+                        list($start, $end) = array_pad($query, 2, null);
+                        if ($end && $this->isDateAttribute($key)) {
+                            $end = Carbon::parse($end)->tz(config('app.timezone'))->endOfDay()->toDateTimeString();
+                        }
+                        $builder->whereBetween($column, [$start, $end]);
+                        break;
+                    case 'in':
+                        $builder->whereIn($column, array_filter($query));
+                        break;
+                    case 'nin':
+                        $builder->whereNotIn($column, array_filter($query));
+                        break;
+                    default:
+                        abort(422, 'Invalid filter operator');
+                }
             }
         }
     }
