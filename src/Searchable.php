@@ -21,17 +21,24 @@ trait Searchable
 
         $this->makeSearchableJoins($query);
 
-        $columns = $this->getSearchableColumns();
-        $query->where(function ($q) use ($columns, $search) {
-            foreach ($columns as $column) {
-                if (strpos($column, '.') === FALSE) {
-                    $column = $this->getTable() . '.' . $column;
+        $query->where(function ($q) use ($search) {
+
+            $columns = $this->getSearchableColumns();
+            $terms = $this->getSearchableShouldSplitTerms()
+                ? array_filter(preg_split("/\s+/", $search))
+                : [$search];
+
+            foreach ($terms as $term) {
+                foreach ($columns as $column) {
+                    if (strpos($column, '.') === FALSE) {
+                        $column = $this->getTable() . '.' . $column;
+                    }
+                    if (strpos($column, 'raw::') !== FALSE) {
+                        $column = str_replace('raw::', '', $column);
+                        $column = DB::raw($column);
+                    }
+                    $q->orWhere($column, 'LIKE', "%{$term}%");
                 }
-                if (strpos($column, 'raw::') !== FALSE) {
-                    $column = str_replace('raw::', '', $column);
-                    $column = DB::raw($column);
-                }
-                $q->orWhere($column, 'LIKE', '%' . $search . '%');
             }
         });
     }
@@ -64,6 +71,18 @@ trait Searchable
     {
         return Arr::get($this->searchable, 'joins', []);
     }
+
+
+    /**
+     * Returns the tables that has to join
+     *
+     * @return array
+     */
+    protected function getSearchableShouldSplitTerms()
+    {
+        return Arr::get($this->searchable, 'split', true);
+    }
+
 
     /**
      * Adds the join sql to the query
