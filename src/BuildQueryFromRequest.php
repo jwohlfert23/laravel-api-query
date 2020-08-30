@@ -18,7 +18,6 @@ use Illuminate\Support\Str;
  */
 trait BuildQueryFromRequest
 {
-
     /**
      * @param $string
      * @return \Illuminate\Database\Query\Expression
@@ -81,11 +80,8 @@ trait BuildQueryFromRequest
             $related_key = $related_model->getKeyName();
             $related_table = $relationship->getRelated()->getTable();
 
-            //Already Joined
-            foreach ((array)$builder->getQuery()->joins as $join) {
-                if ($related_table == $join->table) {
-                    return;
-                }
+            if(collect($builder->getQuery()->joins)->contains('table', $related_table)) {
+                return;
             }
 
             if (is_a($relationship, BelongsTo::class)) {

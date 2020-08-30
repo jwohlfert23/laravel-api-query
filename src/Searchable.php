@@ -1,7 +1,7 @@
 <?php namespace Jwohlfert23\LaravelApiQuery;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -87,13 +87,15 @@ trait Searchable
     /**
      * Adds the join sql to the query
      *
-     * @param $query
+     * @param Builder $query
      */
     protected function makeSearchableJoins(&$query)
     {
         $joins = $this->getSearchableJoins();
         foreach ($joins as $table => $keys) {
-            $query->leftJoin($table, $keys[0], '=', $keys[1]);
+            if (!collect($query->getQuery()->joins)->contains('table', $table)) {
+                $query->leftJoin($table, $keys[0], '=', $keys[1]);
+            }
         }
         if (count($joins) > 0) {
             $query
