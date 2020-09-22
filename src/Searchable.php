@@ -80,7 +80,7 @@ trait Searchable
      */
     protected function getSearchableShouldSplitTerms()
     {
-        return Arr::get($this->searchable, 'split', true);
+        return Arr::get($this->searchable, 'split', false);
     }
 
 
