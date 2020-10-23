@@ -25,11 +25,11 @@ trait BuildQueryFromRequest
     public function getSortByExpression($string)
     {
         if (strpos($string, '.') === false) {
-            $method = 'sortBy' . Str::studly($string);
+            $method = 'sortBy'.Str::studly($string);
             if (method_exists($this, $method)) {
                 return $this->{$method}();
             }
-            return DB::raw($this->getTable() . '.' . $string);
+            return DB::raw($this->getTable().'.'.$string);
         }
 
         $parts = explode('.', $string);
@@ -39,10 +39,10 @@ trait BuildQueryFromRequest
     }
 
 
-    public function scopeBuildFromRequest(Builder $builder)
+    public function scopeBuildFromRequest(Builder $builder, $search = true)
     {
         if (request()->method() !== 'GET') {
-            return $this;
+            return null;
         }
 
         $this->applyWiths($builder);
@@ -55,6 +55,9 @@ trait BuildQueryFromRequest
         $this->applyFilters($builder);
         $this->applySorts($builder);
 
+        if (!$search) {
+            return null;
+        }
         if ($query = request()->query('query')) {
             if (method_exists($this, 'search')) {
                 return static::search($query)->query(function ($builder) {
@@ -68,36 +71,39 @@ trait BuildQueryFromRequest
 
     public function doJoins(Builder $builder, $relationships = [])
     {
-        if (!is_iterable($relationships) || count($relationships) == 0)
+        if (!is_iterable($relationships) || count($relationships) == 0) {
             return;
+        }
 
         foreach ($relationships as $relationship_name => $additional) {
             $relationship = $this->{Str::camel($relationship_name)}();
-            if (get_class($relationship) == MorphTo::class)
+            if (get_class($relationship) == MorphTo::class) {
                 return;
+            }
 
             $related_model = $relationship->getRelated();
             $related_key = $related_model->getKeyName();
             $related_table = $relationship->getRelated()->getTable();
 
-            if(collect($builder->getQuery()->joins)->contains('table', $related_table)) {
+            if (collect($builder->getQuery()->joins)->contains('table', $related_table)) {
                 return;
             }
 
             if (is_a($relationship, BelongsTo::class)) {
-                $builder->leftJoin($related_table, $this->getTable() . '.' . $relationship->getForeignKeyName(), $related_table . '.' . $this->getKeyName());
+                $builder->leftJoin($related_table, $this->getTable().'.'.$relationship->getForeignKeyName(),
+                    $related_table.'.'.$this->getKeyName());
             } elseif (is_a($relationship, BelongsToMany::class)) {
                 $int_table = $relationship->getTable();
 
                 $column1 = $relationship->getForeignPivotKeyName();
                 $column2 = $relationship->getRelatedPivotKeyName();
                 $builder
-                    ->leftJoin($int_table, $column1, $this->getTable() . '.' . $this->getKeyName())
-                    ->leftJoin($related_table, $related_table . '.' . $related_key, $column2);
+                    ->leftJoin($int_table, $column1, $this->getTable().'.'.$this->getKeyName())
+                    ->leftJoin($related_table, $related_table.'.'.$related_key, $column2);
 
             } elseif (is_a($relationship, HasOneOrMany::class)) {
                 $column1 = $relationship->getForeignKeyName();
-                $builder->leftJoin($related_table, $related_table . '.' . $column1, $this->getTable() . '.' . $related_key);
+                $builder->leftJoin($related_table, $related_table.'.'.$column1, $this->getTable().'.'.$related_key);
             }
 
 
@@ -122,7 +128,7 @@ trait BuildQueryFromRequest
             ->all();
 
         $this->doJoins($builder, QueryHelpers::dotToArray($columns));
-        $builder->addSelect($this->getTable() . '.*');
+        $builder->addSelect($this->getTable().'.*');
     }
 
     protected function applySorts(Builder $builder)
@@ -166,11 +172,12 @@ trait BuildQueryFromRequest
                         $builder->where($column, 'like', "%$query%");
                         break;
                     case 'date':
-                        $column = DB::raw('DATE(' . (string)$column . ')');
-                        $builder->where($column, '=', Carbon::parse($query)->tz(config('app.timezone'))->toDateString());
+                        $column = DB::raw('DATE('.(string) $column.')');
+                        $builder->where($column, '=',
+                            Carbon::parse($query)->tz(config('app.timezone'))->toDateString());
                         break;
                     case 'year':
-                        $column = DB::raw('YEAR(' . (string)$column . ')');
+                        $column = DB::raw('YEAR('.(string) $column.')');
                         $builder->where($column, '=', Carbon::parse($query)->tz(config('app.timezone'))->year);
                         break;
                     // Expects Array here and below
