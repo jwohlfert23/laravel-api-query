@@ -86,7 +86,7 @@ trait BuildQueryFromRequest
             $related_table = $relationship->getRelated()->getTable();
 
             if (collect($builder->getQuery()->joins)->contains('table', $related_table)) {
-                return;
+                continue;
             }
 
             if (is_a($relationship, BelongsTo::class)) {
