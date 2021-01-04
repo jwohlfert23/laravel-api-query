@@ -55,7 +55,7 @@ trait BuildQueryFromRequest
         $this->applyFilters($builder);
         $this->applySorts($builder);
 
-        if (!$search) {
+        if (! $search) {
             return null;
         }
         if ($query = request()->query('query')) {
@@ -71,7 +71,7 @@ trait BuildQueryFromRequest
 
     public function doJoins(Builder $builder, $relationships = [])
     {
-        if (!is_iterable($relationships) || count($relationships) == 0) {
+        if (! is_iterable($relationships) || count($relationships) == 0) {
             return;
         }
 
@@ -91,7 +91,7 @@ trait BuildQueryFromRequest
 
             if (is_a($relationship, BelongsTo::class)) {
                 $builder->leftJoin($related_table, $this->getTable().'.'.$relationship->getForeignKeyName(),
-                    $related_table.'.'.$this->getKeyName());
+                    $related_table.'.'.$relationship->getOwnerKeyName());
             } elseif (is_a($relationship, BelongsToMany::class)) {
                 $int_table = $relationship->getTable();
 
@@ -142,7 +142,7 @@ trait BuildQueryFromRequest
     {
         foreach (QueryHelpers::getFilters() as $key => $queries) {
             $column = $this->getSortByExpression($key);
-            if (!is_array($queries)) {
+            if (! is_array($queries)) {
                 $queries = ['eq' => $queries];
             }
 
@@ -214,7 +214,7 @@ trait BuildQueryFromRequest
 
     public function normalizeQueryStringSingular($key, $query)
     {
-        if (!is_string($query)) {
+        if (! is_string($query)) {
             return $query;
         }
 
@@ -232,7 +232,7 @@ trait BuildQueryFromRequest
             $cursor = $this;
             while ($relationship = array_shift($path)) {
                 $methodName = Str::camel($relationship);
-                if (!method_exists($cursor, $methodName)) {
+                if (! method_exists($cursor, $methodName)) {
                     return $query;
                 }
                 $cursor = $cursor->{$methodName}()->getRelated();
@@ -244,7 +244,7 @@ trait BuildQueryFromRequest
         if ($this->isDateAttribute($key)) {
             $cast = 'datetime';
         }
-        if (!$cast) {
+        if (! $cast) {
             return $query;
         }
 
