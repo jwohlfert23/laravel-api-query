@@ -172,9 +172,11 @@ trait BuildQueryFromRequest
                         $builder->where($column, 'like', "%$query%");
                         break;
                     case 'date':
-                        $column = DB::raw('DATE('.(string) $column.')');
-                        $builder->where($column, '=',
-                            Carbon::parse($query)->tz(config('app.timezone'))->toDateString());
+                        $dt = Carbon::parse($query)->tz(config('app.timezone'));
+                        $builder->whereBetween($column, [
+                            $dt->startOfDay()->toDateTimeString(),
+                            $dt->endOfDay()->toDateTimeString(),
+                        ]);
                         break;
                     case 'year':
                         $column = DB::raw('YEAR('.(string) $column.')');
@@ -193,6 +195,9 @@ trait BuildQueryFromRequest
                         break;
                     case 'nin':
                         $builder->whereNotIn($column, array_filter($query));
+                        break;
+                    case 'null':
+                        $builder->whereNull($column);
                         break;
                     default:
                         abort(422, 'Invalid filter operator');
@@ -218,6 +223,9 @@ trait BuildQueryFromRequest
             return $query;
         }
 
+        if ($query === 'null') {
+            return null;
+        }
         if ($query === 'true') {
             return 1;
         }
