@@ -11,4 +11,9 @@ class RelatedModel extends \Illuminate\Database\Eloquent\Model
         'datetime' => 'datetime',
         'custom_date' => 'date:Y-m'
     ];
+
+    public function parent()
+    {
+        return $this->belongsTo(Model::class);
+    }
 }

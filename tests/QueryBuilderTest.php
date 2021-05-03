@@ -2,11 +2,18 @@
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
+use Kirschbaum\PowerJoins\EloquentJoins;
 use Models\Model;
 use Orchestra\Testbench\TestCase;
 
 class QueryBuilderTest extends TestCase
 {
+    public function setUp(): void
+    {
+        parent::setUp();
+
+        EloquentJoins::registerEloquentMacros();
+    }
 
     public function testAll()
     {
@@ -23,28 +30,28 @@ class QueryBuilderTest extends TestCase
 
         // Joins
         $this->assertCount(1, $query->joins);
-        $this->assertEquals($query->joins[0]->table, 'related_models');
-        $this->assertEquals($query->joins[0]->wheres[0]['first'], 'models.related_id');
-        $this->assertEquals($query->joins[0]->wheres[0]['second'], 'related_models.id');
+        $this->assertEquals('related_models', $query->joins[0]->table);
+        $this->assertEquals('models.related_id', $query->joins[0]->wheres[0]['first']);
+        $this->assertEquals('related_models.id', $query->joins[0]->wheres[0]['second']);
 
         // Sorts
         $this->assertCount(2, $query->orders);
-        $this->assertEquals((string)$query->orders[0]['column'], 'models.name');
-        $this->assertEquals($query->orders[0]['direction'], 'desc');
-        $this->assertEquals((string)$query->orders[1]['column'], 'models.date');
-        $this->assertEquals($query->orders[1]['direction'], 'asc');
+        $this->assertEquals('models.name', (string) $query->orders[0]['column']);
+        $this->assertEquals('desc', $query->orders[0]['direction']);
+        $this->assertEquals('models.date', (string) $query->orders[1]['column']);
+        $this->assertEquals('asc', $query->orders[1]['direction']);
 
         // Filters
         $this->assertCount(3, $query->wheres);
-        $this->assertEquals((string)$query->wheres[0]['column'], 'models.name');
-        $this->assertEquals($query->wheres[0]['value'], 'jack');
-        $this->assertEquals($query->wheres[0]['operator'], '=');
-        $this->assertEquals((string)$query->wheres[1]['column'], 'related_models.id');
-        $this->assertEquals($query->wheres[1]['value'], '0');
-        $this->assertEquals($query->wheres[1]['operator'], '>');
-        $this->assertEquals((string)$query->wheres[2]['column'], 'related_models.name');
-        $this->assertEquals($query->wheres[2]['value'], '%my%');
-        $this->assertEquals($query->wheres[2]['operator'], 'like');
+        $this->assertEquals('models.name', (string) $query->wheres[0]['column']);
+        $this->assertEquals('jack', $query->wheres[0]['value']);
+        $this->assertEquals('=', $query->wheres[0]['operator']);
+        $this->assertEquals('related_models.id', (string) $query->wheres[1]['column']);
+        $this->assertEquals('0', $query->wheres[1]['value']);
+        $this->assertEquals('>', $query->wheres[1]['operator']);
+        $this->assertEquals('related_models.name', (string) $query->wheres[2]['column']);
+        $this->assertEquals('%my%', $query->wheres[2]['value']);
+        $this->assertEquals('like', $query->wheres[2]['operator']);
     }
 
     public function testQuery()
@@ -60,8 +67,8 @@ class QueryBuilderTest extends TestCase
         // 2 columns to search by
         $subquery = $query->wheres[0]['query'];
         $this->assertCount(2, $subquery->wheres);
-        $this->assertEquals($subquery->wheres[0]['column'], 'models.name');
-        $this->assertEquals($subquery->wheres[1]['column'], 'models.id');
+        $this->assertEquals('models.name', $subquery->wheres[0]['column']);
+        $this->assertEquals('models.id', $subquery->wheres[1]['column']);
     }
 
     public function testCasts()
@@ -77,16 +84,33 @@ class QueryBuilderTest extends TestCase
 
         list($date, $datetime, $bool, $customDate) = $query->wheres;
 
-        $this->assertEquals($date['column'], 'models.date');
-        $this->assertEquals($date['value'], '2020-01-23');
+        $this->assertEquals('models.date', $date['column']);
+        $this->assertEquals('2020-01-23 00:00:00', $date['value']);
 
-        $this->assertEquals((string)$datetime['column'], 'related_models.datetime');
-        $this->assertEquals($datetime['value'], '2020-01-23 00:00:00');
+        $this->assertEquals('related_models.datetime', (string) $datetime['column']);
+        $this->assertEquals('2020-01-23 00:00:00', $datetime['value']);
 
-        $this->assertEquals($bool['column'], 'models.bool');
-        $this->assertEquals($bool['value'], 1);
+        $this->assertEquals('models.bool', $bool['column']);
+        $this->assertEquals(1, $bool['value']);
 
-        $this->assertEquals($customDate['column'], 'models.custom_date');
-        $this->assertEquals($customDate['value'], '2019-01');
+        $this->assertEquals('models.custom_date', $customDate['column']);
+        $this->assertEquals('2019-01', $customDate['value']);
+    }
+
+    public function testWithIsIgnoredIfDoesNotExists()
+    {
+        $request = Request::create('http://test.com/api?with=related.doesnotexist,related_model');
+        $this->instance('request', $request);
+
+        /** @var Builder $builder */
+        $this->assertCount(0, Model::query()->buildFromRequest()->getEagerLoads());
+    }
+
+    public function testWithIsSetWhenExists()
+    {
+        $request = Request::create('http://test.com/api?with=related,related_model');
+        $this->instance('request', $request);
+        $this->assertCount(1, Model::query()->buildFromRequest()->getEagerLoads());
+        $this->assertEquals(['related'], array_keys(Model::query()->buildFromRequest()->getEagerLoads()));
     }
 }
