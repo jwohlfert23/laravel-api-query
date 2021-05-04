@@ -77,7 +77,7 @@ class ApiQueryBuilder
                 return implode('.', $parts);
             })
             ->each(function ($columns) {
-                $this->builder->joinRelationship($columns);
+                $this->builder->leftJoinRelationship($columns);
             });
     }
 
