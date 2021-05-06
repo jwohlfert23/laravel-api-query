@@ -1,7 +1,9 @@
 <?php namespace Tests;
 
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Kirschbaum\PowerJoins\EloquentJoins;
 use Models\Model;
 use Orchestra\Testbench\TestCase;
@@ -13,6 +15,25 @@ class QueryBuilderTest extends TestCase
         parent::setUp();
 
         EloquentJoins::registerEloquentMacros();
+
+        Schema::create('models', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->boolean('bool');
+            $table->date('date');
+            $table->dateTime('datetime');
+            $table->date('custom_date');
+        });
+
+        Schema::create('related_models', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedInteger('parent_id');
+            $table->string('name');
+            $table->boolean('bool');
+            $table->date('date');
+            $table->dateTime('datetime');
+            $table->date('custom_date');
+        });
     }
 
     public function testAll()
@@ -112,5 +133,19 @@ class QueryBuilderTest extends TestCase
         $this->instance('request', $request);
         $this->assertCount(1, Model::query()->buildFromRequest()->getEagerLoads());
         $this->assertEquals(['related'], array_keys(Model::query()->buildFromRequest()->getEagerLoads()));
+    }
+
+    public function testIgnoresInvalidColumns()
+    {
+        $request = Request::create('http://test.com/api?filter[jack+smith]=jack');
+        $this->instance('request', $request);
+        $this->assertCount(0, Model::query()->buildFromRequest()->getQuery()->wheres);
+    }
+
+    public function testDoesNotAddTableNameIfColumnDoesNotExist()
+    {
+        $request = Request::create('http://test.com/api?filter[jack]=wohlfert');
+        $this->instance('request', $request);
+        $this->assertEquals('jack', Model::query()->buildFromRequest()->getQuery()->wheres[0]['column']);
     }
 }

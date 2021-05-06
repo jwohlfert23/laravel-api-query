@@ -4,7 +4,9 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\ParameterBag;
 use Illuminate\Support\Collection;
@@ -29,6 +31,15 @@ class ApiQueryBuilder
     {
         $this->builder = $builder;
         $this->input = $input;
+
+        Collection::macro('filterValidColumns', function () {
+            return $this->filter(function ($value, $column) {
+                if (is_string(! $column)) {
+                    return false;
+                }
+                return preg_match('/^[a-z]+[a-z0-9._]+$/i', $column);
+            });
+        });
     }
 
     public static function applyInputToBuilder(Builder $builder, ParameterBag $input)
@@ -287,7 +298,9 @@ class ApiQueryBuilder
 
     public function getFilters()
     {
-        return Arr::wrap($this->input->get('filter'));
+        return collect(Arr::wrap($this->input->get('filter')))
+            ->filterValidColumns()
+            ->all();
     }
 
     public function getSorts()
@@ -299,12 +312,30 @@ class ApiQueryBuilder
                 return [
                     ltrim($column, '-') => $dir
                 ];
-            })->all();
+            })
+            ->filterValidColumns()
+            ->all();
     }
 
     public function getColumnsNeeded()
     {
         return array_merge(array_keys($this->getSorts()), array_keys($this->getFilters()));
+    }
+
+    public static function getColumnsForTable($table)
+    {
+        $store = Cache::getStore() instanceof \Illuminate\Cache\TaggableStore
+            ? Cache::tags('laravel-api-query')
+            : Cache::store('array');
+
+        return $store->remember("columns.$table", now()->addWeek(), function () use ($table) {
+            return Schema::getColumnListing($table);
+        });
+    }
+
+    public static function isColumnForTable($table, $column): bool
+    {
+        return in_array($column, static::getColumnsForTable($table));
     }
 
     /**
@@ -319,7 +350,10 @@ class ApiQueryBuilder
             if (method_exists($model, $method)) {
                 return $model->{$method}();
             }
-            return DB::raw($model->getTable().'.'.$string);
+            if ($this->isColumnForTable($table = $model->getTable(), $string)) {
+                return DB::raw("$table.$string");
+            }
+            return DB::raw($string);
         }
 
         $parts = explode('.', $string);
