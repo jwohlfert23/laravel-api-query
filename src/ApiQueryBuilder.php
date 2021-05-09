@@ -88,7 +88,7 @@ class ApiQueryBuilder
                 return implode('.', $parts);
             })
             ->each(function ($columns) {
-                $this->builder->leftJoinRelationship($columns);
+                $this->builder->leftJoinRelationship(Str::camel($columns));
             });
     }
 
