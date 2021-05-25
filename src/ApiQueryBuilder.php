@@ -132,6 +132,17 @@ class ApiQueryBuilder
                     case 'contains':
                         $this->builder->where($column, 'like', "%$query%");
                         break;
+                    case 'descendant':
+                        $parts = explode('.', $column);
+                        if (count($parts) === 2) {
+                            if ($node = DB::table($table = $parts[0])->where($parts[1], $query)->first()) {
+                                $this->builder->whereBetween($table.'._lft', [
+                                    $node->_lft,
+                                    $node->_rgt
+                                ]);
+                            }
+                        }
+                        break;
                     case 'date':
                         $dt = Carbon::parse($query)->tz(config('app.timezone'));
                         $this->builder->whereBetween($column, [
