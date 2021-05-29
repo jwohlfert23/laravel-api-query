@@ -15,9 +15,6 @@ use Illuminate\Support\Collection;
  * Class ApiQueryBuilder
  * @package Jwohlfert23\LaravelApiQuery
  *
- * TODO:
- * - Ability to make sure column exists and skip if does not
- * - When to use $table.$column vs. just $column
  */
 class ApiQueryBuilder
 {
@@ -104,7 +101,8 @@ class ApiQueryBuilder
         foreach ($this->getFilters() as $key => $queries) {
             $column = static::getSortByExpression($this->getModel(), $key);
             if (! is_array($queries)) {
-                $queries = ['eq' => $queries];
+                $defaultOperator = Str::contains($queries, ',') ? 'in' : 'eq';
+                $queries = [$defaultOperator => $queries];
             }
 
             foreach ($queries as $operator => $query) {

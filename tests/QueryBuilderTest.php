@@ -148,4 +148,20 @@ class QueryBuilderTest extends TestCase
         $this->instance('request', $request);
         $this->assertEquals('jack', Model::query()->buildFromRequest()->getQuery()->wheres[0]['column']);
     }
+    
+    public function testDefaultOperatorIsGuessedAsArrayWhenComma()
+    {
+        $request = Request::create('http://test.com/api?filter[name]=jack,collin');
+        $this->instance('request', $request);
+        $this->assertEquals(['jack', 'collin'], Model::query()->buildFromRequest()->getQuery()->wheres[0]['values']);
+        $this->assertEquals('In', Model::query()->buildFromRequest()->getQuery()->wheres[0]['type']);
+    }
+
+    public function testDefaultOperatorIsGuessedAsStringWhenNoComma()
+    {
+        $request = Request::create('http://test.com/api?filter[name]=jack');
+        $this->instance('request', $request);
+        $this->assertEquals('jack', Model::query()->buildFromRequest()->getQuery()->wheres[0]['value']);
+        $this->assertEquals('Basic', Model::query()->buildFromRequest()->getQuery()->wheres[0]['type']);
+    }
 }
