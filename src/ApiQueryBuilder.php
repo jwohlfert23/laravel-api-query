@@ -149,7 +149,7 @@ class ApiQueryBuilder
                         ]);
                         break;
                     case 'year':
-                        $column = DB::raw('YEAR('.(string) $column.')');
+                        $column = DB::raw('YEAR('.(string)$column.')');
                         $this->builder->where($column, '=', Carbon::parse($query)->tz(config('app.timezone'))->year);
                         break;
                     case 'null':
@@ -307,7 +307,10 @@ class ApiQueryBuilder
 
     public function getFilters()
     {
-        return collect(Arr::wrap($this->input->get('filter')))
+        if (! $this->input->has('filters')) {
+            return [];
+        }
+        return collect(Arr::wrap($this->input->all('filter')))
             ->filterValidColumns()
             ->all();
     }
