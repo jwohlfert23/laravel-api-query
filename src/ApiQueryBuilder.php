@@ -307,7 +307,7 @@ class ApiQueryBuilder
 
     public function getFilters()
     {
-        if (! $this->input->has('filters')) {
+        if (! $this->input->has('filter')) {
             return [];
         }
         return collect(Arr::wrap($this->input->all('filter')))
