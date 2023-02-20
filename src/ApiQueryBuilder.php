@@ -1,54 +1,41 @@
-<?php namespace Jwohlfert23\LaravelApiQuery;
+<?php
+
+namespace Jwohlfert23\LaravelApiQuery;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\ParameterBag;
-use Illuminate\Support\Collection;
 
-/**
- * Class ApiQueryBuilder
- * @package Jwohlfert23\LaravelApiQuery
- *
- */
 class ApiQueryBuilder
 {
-    /** @var Builder */
-    protected $builder;
-
-    /** @var ParameterBag */
-    protected $input;
-
-    public function __construct(Builder $builder, ParameterBag $input)
+    public function __construct(protected Builder $builder, protected ParameterBag $input)
     {
-        $this->builder = $builder;
-        $this->input = $input;
-
         Collection::macro('filterValidColumns', function () {
             return $this->filter(function ($value, $column) {
                 if (is_string(! $column)) {
                     return false;
                 }
+
                 return preg_match('/^[a-z]+[a-z0-9._]+$/i', $column);
             });
         });
     }
 
-    public static function applyInputToBuilder(Builder $builder, ParameterBag $input)
+    public static function applyInputToBuilder(Builder $builder, ParameterBag $input): ApiQueryBuilder
     {
         $obj = new self($builder, $input);
+
         return $obj->apply();
     }
 
-    /**
-     * @return \Illuminate\Database\Eloquent\Model
-     */
-    protected function getModel()
+    protected function getModel(): Model
     {
         return $this->builder->getModel();
     }
@@ -58,7 +45,7 @@ class ApiQueryBuilder
         return $this->getModel()->getTable();
     }
 
-    public function apply()
+    public function apply(): self
     {
         $this->applyWiths();
 
@@ -69,11 +56,11 @@ class ApiQueryBuilder
 
         $this->applyFilters();
         $this->applySorts();
+
         return $this;
     }
 
-
-    protected function applyJoins()
+    protected function applyJoins(): void
     {
         collect($this->getColumnsNeeded())
             ->filter(function ($column) {
@@ -82,6 +69,7 @@ class ApiQueryBuilder
             ->map(function ($column) {
                 $parts = explode('.', $column);
                 unset($parts[count($parts) - 1]);
+
                 return implode('.', $parts);
             })
             ->each(function ($columns) {
@@ -89,17 +77,17 @@ class ApiQueryBuilder
             });
     }
 
-    protected function applySorts()
+    protected function applySorts(): void
     {
         foreach ($this->getSorts() as $column => $dir) {
-            $this->builder->orderBy(static::getSortByExpression($this->getModel(), $column), $dir);
+            $this->builder->orderBy($this->getSortByColumn($this->getModel(), $column), $dir);
         }
     }
 
-    protected function applyFilters()
+    protected function applyFilters(): void
     {
         foreach ($this->getFilters() as $key => $queries) {
-            $column = static::getSortByExpression($this->getModel(), $key);
+            $column = $this->getSortByColumn($this->getModel(), $key);
             if (! is_array($queries)) {
                 $defaultOperator = Str::contains($queries, ',') ? 'in' : 'eq';
                 $queries = [$defaultOperator => $queries];
@@ -136,7 +124,7 @@ class ApiQueryBuilder
                             if ($node = DB::table($table = $parts[0])->where($parts[1], $query)->first()) {
                                 $this->builder->whereBetween($table.'._lft', [
                                     $node->_lft,
-                                    $node->_rgt
+                                    $node->_rgt,
                                 ]);
                             }
                         }
@@ -149,7 +137,7 @@ class ApiQueryBuilder
                         ]);
                         break;
                     case 'year':
-                        $column = DB::raw('YEAR('.(string)$column.')');
+                        $column = DB::raw('YEAR('.(string) $column.')');
                         $this->builder->where($column, '=', Carbon::parse($query)->tz(config('app.timezone'))->year);
                         break;
                     case 'null':
@@ -160,9 +148,9 @@ class ApiQueryBuilder
                         $method = ! empty($query) ? 'whereNotNull' : 'whereNull';
                         $this->builder->$method($column);
                         break;
-                    // Expects Array here and below
+                        // Expects Array here and below
                     case 'between':
-                        list($start, $end) = array_pad($query, 2, null);
+                        [$start, $end] = array_pad($query, 2, null);
                         if ($end && $this->getModel()->attributeIsDate($key)) {
                             $end = Carbon::parse($end)->tz(config('app.timezone'))->endOfDay()->toDateTimeString();
                         }
@@ -181,14 +169,7 @@ class ApiQueryBuilder
         }
     }
 
-    /**
-     * @param $model Model
-     * @param $key
-     * @param $operator
-     * @param $query
-     * @return mixed
-     */
-    public static function normalizeQueryString($model, $key, $operator, $query)
+    public static function normalizeQueryString(Model $model, $key, $operator, $query): mixed
     {
         $expectsArray = in_array($operator, ['in', 'nin', 'between']);
         if ($expectsArray) {
@@ -196,16 +177,11 @@ class ApiQueryBuilder
                 return static::normalizeQueryStringSingular($model, $key, $part);
             }, explode(',', $query));
         }
+
         return static::normalizeQueryStringSingular($model, $key, $query);
     }
 
-    /**
-     * @param $model Model
-     * @param $key
-     * @param $query
-     * @return mixed
-     */
-    public static function normalizeQueryStringSingular($model, $key, $query)
+    public static function normalizeQueryStringSingular(Model $model, $key, $query): mixed
     {
         if (! is_string($query)) {
             return $query;
@@ -233,6 +209,7 @@ class ApiQueryBuilder
                 }
                 $cursor = $cursor->{$methodName}()->getRelated();
             }
+
             return static::normalizeQueryStringSingular($cursor, $key, $query);
         }
 
@@ -244,11 +221,12 @@ class ApiQueryBuilder
             return $query;
         }
 
-        list($castType, $params) = array_pad(explode(':', $cast), 2, null);
+        [$castType, $params] = array_pad(explode(':', $cast), 2, null);
         switch ($castType) {
             case 'date':
             case 'datetime':
                 $defaultDate = $castType === 'date' ? 'Y-m-d' : 'Y-m-d H:i:s';
+
                 return Carbon::parse($query)->tz(config('app.timezone'))->format($params ?: $defaultDate);
             case 'bool':
             case 'boolean':
@@ -258,8 +236,7 @@ class ApiQueryBuilder
         return $query;
     }
 
-
-    public function applyWiths()
+    public function applyWiths(): self
     {
         $this->builder->with($this->getWiths()->all());
         $this->builder->withCount($this->getWithCounts()->all());
@@ -286,6 +263,7 @@ class ApiQueryBuilder
                     }
                     $cursor = $cursor->{$relation}()->getRelated();
                 }
+
                 return true;
             })
             ->values();
@@ -305,36 +283,38 @@ class ApiQueryBuilder
             ->values();
     }
 
-    public function getFilters()
+    public function getFilters(): array
     {
         if (! $this->input->has('filter')) {
             return [];
         }
+
         return collect(Arr::wrap($this->input->all('filter')))
             ->filterValidColumns()
             ->all();
     }
 
-    public function getSorts()
+    public function getSorts(): array
     {
         return collect(explode(',', $this->input->get('sort')))
             ->filter()
             ->mapWithKeys(function ($column) {
                 $dir = $column[0] === '-' ? 'desc' : 'asc';
+
                 return [
-                    ltrim($column, '-') => $dir
+                    ltrim($column, '-') => $dir,
                 ];
             })
             ->filterValidColumns()
             ->all();
     }
 
-    public function getColumnsNeeded()
+    public function getColumnsNeeded(): arary
     {
         return array_merge(array_keys($this->getSorts()), array_keys($this->getFilters()));
     }
 
-    public static function getColumnsForTable($table)
+    public static function getColumnsForTable($table): array
     {
         $store = Cache::getStore() instanceof \Illuminate\Cache\TaggableStore
             ? Cache::tags('laravel-api-query')
@@ -350,12 +330,7 @@ class ApiQueryBuilder
         return in_array($column, static::getColumnsForTable($table));
     }
 
-    /**
-     * @param $model Model
-     * @param $string
-     * @return \Illuminate\Database\Query\Expression
-     */
-    public function getSortByExpression($model, $string)
+    public function getSortByColumn(Model $model, string $string): string
     {
         if (strpos($string, '.') === false) {
             $method = 'sortBy'.Str::studly($string);
@@ -363,14 +338,16 @@ class ApiQueryBuilder
                 return $model->{$method}();
             }
             if ($this->isColumnForTable($table = $model->getTable(), $string)) {
-                return DB::raw("$table.$string");
+                return "$table.$string";
             }
-            return DB::raw($string);
+
+            return $string;
         }
 
         $parts = explode('.', $string);
         $first = array_shift($parts);
         $relationship = $model->{Str::camel($first)}();
-        return static::getSortByExpression($relationship->getRelated(), implode('.', $parts));
+
+        return $this->getSortByColumn($relationship->getRelated(), implode('.', $parts));
     }
 }

@@ -1,4 +1,6 @@
-<?php namespace Tests;
+<?php
+
+namespace Tests;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Schema\Blueprint;
@@ -103,7 +105,7 @@ class QueryBuilderTest extends TestCase
         $this->assertCount(1, $query->joins);
         $this->assertCount(4, $query->wheres);
 
-        list($date, $datetime, $bool, $customDate) = $query->wheres;
+        [$date, $datetime, $bool, $customDate] = $query->wheres;
 
         $this->assertEquals('models.date', $date['column']);
         $this->assertEquals('2020-01-23 00:00:00', $date['value']);
@@ -148,7 +150,7 @@ class QueryBuilderTest extends TestCase
         $this->instance('request', $request);
         $this->assertEquals('jack', Model::query()->buildFromRequest()->getQuery()->wheres[0]['column']);
     }
-    
+
     public function testDefaultOperatorIsGuessedAsArrayWhenComma()
     {
         $request = Request::create('http://test.com/api?filter[name]=jack,collin');

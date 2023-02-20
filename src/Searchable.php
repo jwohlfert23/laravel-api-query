@@ -1,27 +1,24 @@
-<?php namespace Jwohlfert23\LaravelApiQuery;
+<?php
 
-use Illuminate\Database\Eloquent\Model;
+namespace Jwohlfert23\LaravelApiQuery;
+
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 /** @mixin Model */
 trait Searchable
 {
-    /**
-     * @param Builder $query
-     * @param $search
-     * @return void
-     */
-    public function scopeSearch($query, $search)
+    public function scopeSearch(Builder $query, $search)
     {
-        if (empty($search))
+        if (empty($search)) {
             return;
+        }
 
         $this->makeSearchableJoins($query);
 
         $query->where(function ($q) use ($search) {
-
             $columns = $this->getSearchableColumns();
             $terms = $this->getSearchableShouldSplitTerms()
                 ? array_filter(preg_split("/\s+/", $search))
@@ -29,10 +26,10 @@ trait Searchable
 
             foreach ($terms as $term) {
                 foreach ($columns as $column) {
-                    if (strpos($column, '.') === FALSE) {
-                        $column = $this->getTable() . '.' . $column;
+                    if (! str_contains($column, '.')) {
+                        $column = $this->getTable().'.'.$column;
                     }
-                    if (strpos($column, 'raw::') !== FALSE) {
+                    if (str_contains($column, 'raw::')) {
                         $column = str_replace('raw::', '', $column);
                         $column = DB::raw($column);
                     }
@@ -42,12 +39,7 @@ trait Searchable
         });
     }
 
-    /**
-     * Returns the search columns
-     *
-     * @return array
-     */
-    protected function getSearchableColumns()
+    protected function getSearchableColumns(): array
     {
         if (property_exists($this, 'searchable')) {
             $columns = $this->searchable;
@@ -58,48 +50,35 @@ trait Searchable
             // This is to maintain compatibility with https://github.com/nicolaslopezj/searchable
             return isset($columns[0]) ? $columns : array_keys($columns);
         }
+
         return DB::connection()->getSchemaBuilder()->getColumnListing($this->table);
     }
 
-    /**
-     * Returns the tables that has to join
-     *
-     * @return array
-     */
-    protected function getSearchableJoins()
+    protected function getSearchableJoins(): array
     {
         return Arr::get($this->searchable, 'joins', []);
     }
 
-
-    /**
-     * Returns the tables that has to join
-     *
-     * @return array
-     */
-    protected function getSearchableShouldSplitTerms()
+    protected function getSearchableShouldSplitTerms(): bool
     {
         return Arr::get($this->searchable, 'split', false);
     }
 
-
     /**
      * Adds the join sql to the query
-     *
-     * @param Builder $query
-     */
-    protected function makeSearchableJoins(&$query)
+     **/
+    protected function makeSearchableJoins(Builder $query): void
     {
         $joins = $this->getSearchableJoins();
         foreach ($joins as $table => $keys) {
-            if (!collect($query->getQuery()->joins)->contains('table', $table)) {
+            if (! collect($query->getQuery()->joins)->contains('table', $table)) {
                 $query->leftJoin($table, $keys[0], '=', $keys[1]);
             }
         }
         if (count($joins) > 0) {
             $query
-                ->select($this->getTable() . '.*')
-                ->groupBy($this->getTable() . '.' . $this->getKeyName());
+                ->select($this->getTable().'.*')
+                ->groupBy($this->getTable().'.'.$this->getKeyName());
         }
     }
 }

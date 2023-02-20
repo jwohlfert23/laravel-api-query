@@ -1,4 +1,6 @@
-<?php namespace Models;
+<?php
+
+namespace Models;
 
 use Jwohlfert23\LaravelApiQuery\BuildQueryFromRequest;
 
@@ -9,7 +11,7 @@ class RelatedModel extends \Illuminate\Database\Eloquent\Model
     protected $casts = [
         'bool' => 'bool',
         'datetime' => 'datetime',
-        'custom_date' => 'date:Y-m'
+        'custom_date' => 'date:Y-m',
     ];
 
     public function parent()

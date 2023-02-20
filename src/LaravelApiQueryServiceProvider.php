@@ -1,9 +1,11 @@
-<?php namespace Jwohlfert23\LaravelApiQuery;
+<?php
 
-use Illuminate\Support\ServiceProvider;
+namespace Jwohlfert23\LaravelApiQuery;
+
 use Illuminate\Database\Events\MigrationsStarted;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\ServiceProvider;
 
 class LaravelApiQueryServiceProvider extends ServiceProvider
 {
