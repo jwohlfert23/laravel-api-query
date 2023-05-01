@@ -19,7 +19,7 @@ class ApiQueryBuilder
     {
         Collection::macro('filterValidColumns', function () {
             return $this->filter(function ($value, $column) {
-                if (is_string(!$column)) {
+                if (is_string(! $column)) {
                     return false;
                 }
 
@@ -33,6 +33,23 @@ class ApiQueryBuilder
         $obj = new self($builder, $input);
 
         return $obj->apply();
+    }
+
+    public static function performJoinsFromColumns(Builder $builder, array $columns): void
+    {
+        collect($columns)
+            ->filter(function (string $column) {
+                return Str::contains($column, '.');
+            })
+            ->map(function (string $column) {
+                $parts = explode('.', $column);
+                array_pop($parts);
+
+                return implode('.', $parts);
+            })
+            ->each(function (string $column) use ($builder) {
+                $builder->leftJoinRelationship(Str::camel($column));
+            });
     }
 
     protected function getModel(): Model
@@ -62,19 +79,7 @@ class ApiQueryBuilder
 
     protected function applyJoins(): void
     {
-        collect($this->getColumnsNeeded())
-            ->filter(function ($column) {
-                return Str::contains($column, '.');
-            })
-            ->map(function ($column) {
-                $parts = explode('.', $column);
-                unset($parts[count($parts) - 1]);
-
-                return implode('.', $parts);
-            })
-            ->each(function ($columns) {
-                $this->builder->leftJoinRelationship(Str::camel($columns));
-            });
+        self::performJoinsFromColumns($this->builder, $this->getColumnsNeeded());
     }
 
     protected function applySorts(): void
@@ -88,7 +93,7 @@ class ApiQueryBuilder
     {
         foreach ($this->getFilters() as $key => $queries) {
             $column = $this->getSortByColumn($this->getModel(), $key);
-            if (!is_array($queries)) {
+            if (! is_array($queries)) {
                 $defaultOperator = Str::contains($queries, ',') ? 'in' : 'eq';
                 $queries = [$defaultOperator => $queries];
             }
@@ -122,7 +127,7 @@ class ApiQueryBuilder
                         $parts = explode('.', $column);
                         if (count($parts) === 2) {
                             if ($node = DB::table($table = $parts[0])->where($parts[1], $query)->first()) {
-                                $this->builder->whereBetween($table . '._lft', [
+                                $this->builder->whereBetween($table.'._lft', [
                                     $node->_lft,
                                     $node->_rgt,
                                 ]);
@@ -137,18 +142,18 @@ class ApiQueryBuilder
                         ]);
                         break;
                     case 'year':
-                        $column = DB::raw('YEAR(' . (string)$column . ')');
+                        $column = DB::raw('YEAR('.(string) $column.')');
                         $this->builder->where($column, '=', Carbon::parse($query)->tz(config('app.timezone'))->year);
                         break;
                     case 'null':
-                        $method = !empty($query) ? 'whereNull' : 'whereNotNull';
+                        $method = ! empty($query) ? 'whereNull' : 'whereNotNull';
                         $this->builder->$method($column);
                         break;
                     case 'notnull':
-                        $method = !empty($query) ? 'whereNotNull' : 'whereNull';
+                        $method = ! empty($query) ? 'whereNotNull' : 'whereNull';
                         $this->builder->$method($column);
                         break;
-                    // Expects Array here and below
+                        // Expects Array here and below
                     case 'between':
                         [$start, $end] = array_pad($query, 2, null);
                         if ($end && $this->getModel()->attributeIsDate($key)) {
@@ -183,7 +188,7 @@ class ApiQueryBuilder
 
     public static function normalizeQueryStringSingular(Model $model, $key, $query): mixed
     {
-        if (!is_string($query)) {
+        if (! is_string($query)) {
             return $query;
         }
 
@@ -204,7 +209,7 @@ class ApiQueryBuilder
             $cursor = $model;
             while ($relationship = array_shift($path)) {
                 $methodName = Str::camel($relationship);
-                if (!method_exists($cursor, $methodName)) {
+                if (! method_exists($cursor, $methodName)) {
                     return $query;
                 }
                 $cursor = $cursor->{$methodName}()->getRelated();
@@ -217,7 +222,7 @@ class ApiQueryBuilder
         if ($model->attributeIsDate($key)) {
             $cast = 'datetime';
         }
-        if (!$cast) {
+        if (! $cast) {
             return $query;
         }
 
@@ -258,7 +263,7 @@ class ApiQueryBuilder
             ->filter(function ($dotRelation) {
                 $cursor = $this->getModel();
                 foreach (explode('.', $dotRelation) as $relation) {
-                    if (!method_exists($cursor, $relation)) {
+                    if (! method_exists($cursor, $relation)) {
                         return false;
                     }
                     $cursor = $cursor->{$relation}()->getRelated();
@@ -285,7 +290,7 @@ class ApiQueryBuilder
 
     public function getFilters(): array
     {
-        if (!$this->input->has('filter')) {
+        if (! $this->input->has('filter')) {
             return [];
         }
 
@@ -333,7 +338,7 @@ class ApiQueryBuilder
     public function getSortByColumn(Model $model, string $string): string
     {
         if (strpos($string, '.') === false) {
-            $method = 'sortBy' . Str::studly($string);
+            $method = 'sortBy'.Str::studly($string);
             if (method_exists($model, $method)) {
                 return $model->{$method}();
             }
