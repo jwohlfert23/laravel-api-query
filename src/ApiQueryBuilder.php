@@ -266,6 +266,10 @@ class ApiQueryBuilder
                     if (! method_exists($cursor, $relation)) {
                         return false;
                     }
+                    if ($cursor->hasAttributeMutator(Str::snake($relation))) {
+                        return false;
+                    }
+
                     $cursor = $cursor->{$relation}()->getRelated();
                 }
 
