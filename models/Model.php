@@ -16,10 +16,8 @@ class Model extends \Illuminate\Database\Eloquent\Model
     ];
 
     protected $searchable = [
-        'columns' => [
-            'name' => 10,
-            'id' => 10,
-        ],
+        'name',
+        'id',
     ];
 
     public function related()
