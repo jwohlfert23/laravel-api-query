@@ -4,7 +4,6 @@ namespace Jwohlfert23\LaravelApiQuery;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Kirschbaum\PowerJoins\PowerJoins;
 use Symfony\Component\HttpFoundation\ParameterBag;
 
 /**
@@ -12,8 +11,6 @@ use Symfony\Component\HttpFoundation\ParameterBag;
  */
 trait BuildQueryFromRequest
 {
-    use PowerJoins;
-
     public function scopeBuildFrom(Builder $builder, ParameterBag $input, $search = true)
     {
         $apiQueryBuilder = ApiQueryBuilder::applyInputToBuilder($builder, $input);
