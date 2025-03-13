@@ -286,7 +286,7 @@ class ApiQueryBuilder
 
     public function getWithCounts(): Collection
     {
-        return collect(explode(',', $this->input->get('with_count')))
+        return collect(explode(',', $this->input->get('with_count', '')))
             ->map(function ($i) {
                 return Str::camel(trim($i));
             })
@@ -311,7 +311,7 @@ class ApiQueryBuilder
 
     public function getSorts(): array
     {
-        return collect(explode(',', $this->input->get('sort')))
+        return collect(explode(',', $this->input->get('sort', '')))
             ->filter()
             ->mapWithKeys(function ($column) {
                 $dir = $column[0] === '-' ? 'desc' : 'asc';
