@@ -12,7 +12,7 @@ use Orchestra\Testbench\TestCase;
 
 class QueryBuilderTest extends TestCase
 {
-    public function setUp(): void
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -38,7 +38,7 @@ class QueryBuilderTest extends TestCase
         });
     }
 
-    public function testAll()
+    public function test_all()
     {
         $request = Request::create('http://test.com/api?with=related&sort=-name,date&filter[name]=jack&filter[related.id][gt]=0&filter[related.name][contains]=my');
         $this->instance('request', $request);
@@ -77,7 +77,7 @@ class QueryBuilderTest extends TestCase
         $this->assertEquals('like', $query->wheres[2]['operator']);
     }
 
-    public function testQuery()
+    public function test_query()
     {
         $request = Request::create('http://test.com/api?with=related&query=jack');
         $this->instance('request', $request);
@@ -94,7 +94,7 @@ class QueryBuilderTest extends TestCase
         $this->assertEquals('models.id', $subquery->wheres[1]['column']);
     }
 
-    public function testCasts()
+    public function test_casts()
     {
         $request = Request::create('http://test.com/api?filter[date]=Jan+23+2020&filter[related.datetime]=Jan+23+2020&filter[bool]=true&filter[custom_date]=01/01/2019');
         $this->instance('request', $request);
@@ -120,7 +120,7 @@ class QueryBuilderTest extends TestCase
         $this->assertEquals('2019-01', $customDate['value']);
     }
 
-    public function testWithIsIgnoredIfDoesNotExists()
+    public function test_with_is_ignored_if_does_not_exists()
     {
         $request = Request::create('http://test.com/api?with=related.doesnotexist,related_model');
         $this->instance('request', $request);
@@ -129,7 +129,7 @@ class QueryBuilderTest extends TestCase
         $this->assertCount(0, Model::query()->buildFromRequest()->getEagerLoads());
     }
 
-    public function testWithIsSetWhenExists()
+    public function test_with_is_set_when_exists()
     {
         $request = Request::create('http://test.com/api?with=related,related_model');
         $this->instance('request', $request);
@@ -137,21 +137,21 @@ class QueryBuilderTest extends TestCase
         $this->assertEquals(['related'], array_keys(Model::query()->buildFromRequest()->getEagerLoads()));
     }
 
-    public function testIgnoresInvalidColumns()
+    public function test_ignores_invalid_columns()
     {
         $request = Request::create('http://test.com/api?filter[jack+smith]=jack');
         $this->instance('request', $request);
         $this->assertCount(0, Model::query()->buildFromRequest()->getQuery()->wheres);
     }
 
-    public function testDoesNotAddTableNameIfColumnDoesNotExist()
+    public function test_does_not_add_table_name_if_column_does_not_exist()
     {
         $request = Request::create('http://test.com/api?filter[jack]=wohlfert');
         $this->instance('request', $request);
         $this->assertEquals('jack', Model::query()->buildFromRequest()->getQuery()->wheres[0]['column']);
     }
 
-    public function testDefaultOperatorIsGuessedAsArrayWhenComma()
+    public function test_default_operator_is_guessed_as_array_when_comma()
     {
         $request = Request::create('http://test.com/api?filter[name]=jack,collin');
         $this->instance('request', $request);
@@ -159,7 +159,7 @@ class QueryBuilderTest extends TestCase
         $this->assertEquals('In', Model::query()->buildFromRequest()->getQuery()->wheres[0]['type']);
     }
 
-    public function testDefaultOperatorIsGuessedAsStringWhenNoComma()
+    public function test_default_operator_is_guessed_as_string_when_no_comma()
     {
         $request = Request::create('http://test.com/api?filter[name]=jack');
         $this->instance('request', $request);
