@@ -6,12 +6,21 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Jwohlfert23\LaravelApiQuery\LaravelApiQueryServiceProvider;
 use Kirschbaum\PowerJoins\EloquentJoins;
 use Models\Model;
+use Models\RestrictedModel;
 use Orchestra\Testbench\TestCase;
 
 class QueryBuilderTest extends TestCase
 {
+    protected function getPackageProviders($app): array
+    {
+        return [
+            LaravelApiQueryServiceProvider::class,
+        ];
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -148,7 +157,7 @@ class QueryBuilderTest extends TestCase
     {
         $request = Request::create('http://test.com/api?filter[jack]=wohlfert');
         $this->instance('request', $request);
-        $this->assertEquals('jack', Model::query()->buildFromRequest()->getQuery()->wheres[0]['column']);
+        $this->assertCount(0, Model::query()->buildFromRequest()->getQuery()->wheres);
     }
 
     public function test_default_operator_is_guessed_as_array_when_comma()
@@ -165,5 +174,312 @@ class QueryBuilderTest extends TestCase
         $this->instance('request', $request);
         $this->assertEquals('jack', Model::query()->buildFromRequest()->getQuery()->wheres[0]['value']);
         $this->assertEquals('Basic', Model::query()->buildFromRequest()->getQuery()->wheres[0]['type']);
+    }
+
+    public function test_invalid_sort_column_is_silently_ignored()
+    {
+        $request = Request::create('http://test.com/api?sort=nonexistent_column');
+        $this->instance('request', $request);
+        $query = Model::query()->buildFromRequest()->getQuery();
+        $this->assertEmpty($query->orders);
+    }
+
+    public function test_invalid_relationship_in_sort_is_silently_ignored()
+    {
+        $request = Request::create('http://test.com/api?sort=fakrelation.name');
+        $this->instance('request', $request);
+        $query = Model::query()->buildFromRequest()->getQuery();
+        $this->assertEmpty($query->orders);
+    }
+
+    public function test_invalid_relationship_in_filter_is_silently_ignored()
+    {
+        $request = Request::create('http://test.com/api?filter[fakerelation.name]=test');
+        $this->instance('request', $request);
+        $query = Model::query()->buildFromRequest()->getQuery();
+        $this->assertCount(0, $query->wheres);
+    }
+
+    public function test_queryable_restricts_both_sort_and_filter()
+    {
+        // RestrictedModel has sortable() and filterable(), so queryable() is the fallback.
+        // To test queryable alone, use a model that only defines queryable().
+        // Here we test that restricted model's sortable/filterable work correctly.
+        // 'bool' is in filterable but not in sortable.
+        $request = Request::create('http://test.com/api?sort=bool&filter[bool]=true');
+        $this->instance('request', $request);
+        $query = RestrictedModel::query()->buildFromRequest()->getQuery();
+
+        // Sort on 'bool' should be ignored (not in sortable)
+        $this->assertEmpty($query->orders);
+        // Filter on 'bool' should work (in filterable)
+        $this->assertCount(1, $query->wheres);
+    }
+
+    public function test_sortable_overrides_queryable_for_sorts()
+    {
+        // RestrictedModel: sortable=['name', 'created_at'], queryable=['name', 'date']
+        // 'date' is in queryable but not sortable — sort should be ignored
+        $request = Request::create('http://test.com/api?sort=date');
+        $this->instance('request', $request);
+        $query = RestrictedModel::query()->buildFromRequest()->getQuery();
+        $this->assertEmpty($query->orders);
+
+        // 'name' is in sortable — should work
+        $request = Request::create('http://test.com/api?sort=name');
+        $this->instance('request', $request);
+        $query = RestrictedModel::query()->buildFromRequest()->getQuery();
+        $this->assertCount(1, $query->orders);
+        $this->assertEquals('models.name', (string) $query->orders[0]['column']);
+    }
+
+    public function test_filterable_overrides_queryable_for_filters()
+    {
+        // RestrictedModel: filterable=['name', 'bool'], queryable=['name', 'date']
+        // 'date' is in queryable but not filterable — filter should be ignored
+        $request = Request::create('http://test.com/api?filter[date]=2020-01-01');
+        $this->instance('request', $request);
+        $query = RestrictedModel::query()->buildFromRequest()->getQuery();
+        $this->assertCount(0, $query->wheres);
+
+        // 'name' is in filterable — should work
+        $request = Request::create('http://test.com/api?filter[name]=jack');
+        $this->instance('request', $request);
+        $query = RestrictedModel::query()->buildFromRequest()->getQuery();
+        $this->assertCount(1, $query->wheres);
+        $this->assertEquals('models.name', (string) $query->wheres[0]['column']);
+    }
+
+    public function test_no_allowlist_allows_all_columns()
+    {
+        // Model has no queryable/sortable/filterable — all schema columns are allowed
+        $request = Request::create('http://test.com/api?sort=name,date,bool&filter[name]=jack&filter[bool]=true');
+        $this->instance('request', $request);
+        $query = Model::query()->buildFromRequest()->getQuery();
+        $this->assertCount(3, $query->orders);
+        $this->assertCount(2, $query->wheres);
+    }
+
+    public function test_closure_sort_expression()
+    {
+        $model = new class extends \Illuminate\Database\Eloquent\Model
+        {
+            use \Jwohlfert23\LaravelApiQuery\BuildQueryFromRequest;
+
+            protected $table = 'models';
+
+            public function sortable(): array
+            {
+                return [
+                    'name',
+                    'custom_score' => fn () => \Illuminate\Support\Facades\DB::raw('(SELECT 1)'),
+                ];
+            }
+        };
+
+        $request = Request::create('http://test.com/api?sort=custom_score');
+        $this->instance('request', $request);
+
+        $builder = $model->newQuery();
+        \Jwohlfert23\LaravelApiQuery\ApiQueryBuilder::applyInputToBuilder($builder, $request->query);
+        $query = $builder->getQuery();
+
+        $this->assertCount(1, $query->orders);
+        $this->assertEquals('(SELECT 1)', $query->orders[0]['column']->getValue($builder->getQuery()->getGrammar()));
+        $this->assertEquals('asc', $query->orders[0]['direction']);
+    }
+
+    // ── Filter operator tests ───────────────────────────────────────
+
+    public function test_filter_not_operator()
+    {
+        $request = Request::create('http://test.com/api?filter[name][not]=jack');
+        $this->instance('request', $request);
+        $where = Model::query()->buildFromRequest()->getQuery()->wheres[0];
+        $this->assertEquals('models.name', $where['column']);
+        $this->assertEquals('!=', $where['operator']);
+        $this->assertEquals('jack', $where['value']);
+    }
+
+    public function test_filter_lt_operator()
+    {
+        $request = Request::create('http://test.com/api?filter[id][lt]=10');
+        $this->instance('request', $request);
+        $where = Model::query()->buildFromRequest()->getQuery()->wheres[0];
+        $this->assertEquals('<', $where['operator']);
+        $this->assertEquals('10', $where['value']);
+    }
+
+    public function test_filter_gte_lte_operators()
+    {
+        $request = Request::create('http://test.com/api?filter[id][gte]=5&filter[id][lte]=10');
+        $this->instance('request', $request);
+        $wheres = Model::query()->buildFromRequest()->getQuery()->wheres;
+        $this->assertCount(2, $wheres);
+        $this->assertEquals('>=', $wheres[0]['operator']);
+        $this->assertEquals('5', $wheres[0]['value']);
+        $this->assertEquals('<=', $wheres[1]['operator']);
+        $this->assertEquals('10', $wheres[1]['value']);
+    }
+
+    public function test_filter_sw_operator()
+    {
+        $request = Request::create('http://test.com/api?filter[name][sw]=ja');
+        $this->instance('request', $request);
+        $where = Model::query()->buildFromRequest()->getQuery()->wheres[0];
+        $this->assertEquals('like', $where['operator']);
+        $this->assertEquals('ja%', $where['value']);
+    }
+
+    public function test_filter_ew_operator()
+    {
+        $request = Request::create('http://test.com/api?filter[name][ew]=ck');
+        $this->instance('request', $request);
+        $where = Model::query()->buildFromRequest()->getQuery()->wheres[0];
+        $this->assertEquals('like', $where['operator']);
+        $this->assertEquals('%ck', $where['value']);
+    }
+
+    public function test_filter_null_operator()
+    {
+        $request = Request::create('http://test.com/api?filter[name][null]=1');
+        $this->instance('request', $request);
+        $where = Model::query()->buildFromRequest()->getQuery()->wheres[0];
+        $this->assertEquals('Null', $where['type']);
+        $this->assertEquals('models.name', $where['column']);
+    }
+
+    public function test_filter_notnull_operator()
+    {
+        $request = Request::create('http://test.com/api?filter[name][notnull]=1');
+        $this->instance('request', $request);
+        $where = Model::query()->buildFromRequest()->getQuery()->wheres[0];
+        $this->assertEquals('NotNull', $where['type']);
+        $this->assertEquals('models.name', $where['column']);
+    }
+
+    public function test_filter_between_operator()
+    {
+        $request = Request::create('http://test.com/api?filter[id][between]=1,10');
+        $this->instance('request', $request);
+        $where = Model::query()->buildFromRequest()->getQuery()->wheres[0];
+        $this->assertEquals('between', $where['type']);
+        $this->assertEquals(['1', '10'], $where['values']);
+    }
+
+    public function test_filter_nin_operator()
+    {
+        $request = Request::create('http://test.com/api?filter[name][nin]=jack,collin');
+        $this->instance('request', $request);
+        $where = Model::query()->buildFromRequest()->getQuery()->wheres[0];
+        $this->assertEquals('NotIn', $where['type']);
+        $this->assertEquals(['jack', 'collin'], $where['values']);
+    }
+
+    // ── sortBy{Column} backward compat ──────────────────────────────
+
+    public function test_sort_by_column_method_on_model()
+    {
+        $model = new class extends \Illuminate\Database\Eloquent\Model
+        {
+            use \Jwohlfert23\LaravelApiQuery\BuildQueryFromRequest;
+
+            protected $table = 'models';
+
+            public function sortByCustomRank(): string
+            {
+                return 'models.name';
+            }
+        };
+
+        $request = Request::create('http://test.com/api?sort=-custom_rank');
+        $this->instance('request', $request);
+
+        $builder = $model->newQuery();
+        \Jwohlfert23\LaravelApiQuery\ApiQueryBuilder::applyInputToBuilder($builder, $request->query);
+        $query = $builder->getQuery();
+
+        $this->assertCount(1, $query->orders);
+        $this->assertEquals('desc', $query->orders[0]['direction']);
+    }
+
+    // ── with_count ──────────────────────────────────────────────────
+
+    public function test_with_count()
+    {
+        $request = Request::create('http://test.com/api?with_count=related');
+        $this->instance('request', $request);
+
+        $builder = Model::query()->buildFromRequest();
+        $query = $builder->getQuery();
+
+        // withCount adds an aggregate select sub-query
+        $this->assertNotEmpty($query->columns);
+        $sql = $builder->toSql();
+        $this->assertStringContainsString('related_count', $sql);
+    }
+
+    // ── queryable() alone as fallback ───────────────────────────────
+
+    public function test_queryable_alone_restricts_sort_and_filter()
+    {
+        $model = new class extends \Illuminate\Database\Eloquent\Model
+        {
+            use \Jwohlfert23\LaravelApiQuery\BuildQueryFromRequest;
+
+            protected $table = 'models';
+
+            public function queryable(): array
+            {
+                return ['name'];
+            }
+        };
+
+        // 'name' allowed, 'bool' not
+        $request = Request::create('http://test.com/api?sort=name,bool&filter[name]=jack&filter[bool]=true');
+        $this->instance('request', $request);
+
+        $builder = $model->newQuery();
+        \Jwohlfert23\LaravelApiQuery\ApiQueryBuilder::applyInputToBuilder($builder, $request->query);
+        $query = $builder->getQuery();
+
+        $this->assertCount(1, $query->orders);
+        $this->assertEquals('models.name', (string) $query->orders[0]['column']);
+        $this->assertCount(1, $query->wheres);
+        $this->assertEquals('models.name', $query->wheres[0]['column']);
+    }
+
+    // ── normalizeQueryString edge cases ─────────────────────────────
+
+    public function test_normalize_false_string_to_zero()
+    {
+        $request = Request::create('http://test.com/api?filter[bool]=false');
+        $this->instance('request', $request);
+        $where = Model::query()->buildFromRequest()->getQuery()->wheres[0];
+        $this->assertSame(0, $where['value']);
+    }
+
+    public function test_normalize_null_string_to_null()
+    {
+        // "null" string is normalized to PHP null; where($col, null) becomes whereNull
+        $request = Request::create('http://test.com/api?filter[name][eq]=null');
+        $this->instance('request', $request);
+        $where = Model::query()->buildFromRequest()->getQuery()->wheres[0];
+        $this->assertEquals('Null', $where['type']);
+        $this->assertEquals('models.name', $where['column']);
+    }
+
+    // ── Non-GET requests skipped ────────────────────────────────────
+
+    public function test_non_get_request_is_ignored()
+    {
+        $request = Request::create('http://test.com/api?sort=name&filter[name]=jack', 'POST');
+        $this->instance('request', $request);
+
+        $builder = Model::query()->buildFromRequest();
+        $query = $builder->getQuery();
+
+        $this->assertEmpty($query->orders);
+        $this->assertEmpty($query->wheres);
     }
 }

@@ -40,6 +40,13 @@
   "config": {
     "preferred-install": "dist"
   },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Jwohlfert23\\LaravelApiQuery\\LaravelApiQueryServiceProvider"
+      ]
+    }
+  },
   "minimum-stability": "dev",
   "prefer-stable": true
 }

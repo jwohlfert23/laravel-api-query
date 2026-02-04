@@ -3,6 +3,7 @@
 namespace Jwohlfert23\LaravelApiQuery;
 
 use Carbon\Carbon;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
@@ -15,18 +16,7 @@ use Symfony\Component\HttpFoundation\ParameterBag;
 
 class ApiQueryBuilder
 {
-    public function __construct(protected Builder $builder, protected ParameterBag $input)
-    {
-        Collection::macro('filterValidColumns', function () {
-            return $this->filter(function ($value, $column) {
-                if (is_string(! $column)) {
-                    return false;
-                }
-
-                return preg_match('/^[a-z]+[a-z0-9._]+$/i', $column);
-            });
-        });
-    }
+    public function __construct(protected Builder $builder, protected ParameterBag $input) {}
 
     public static function applyInputToBuilder(Builder $builder, ParameterBag $input): ApiQueryBuilder
     {
@@ -37,6 +27,8 @@ class ApiQueryBuilder
 
     public static function performJoinsFromColumns(Builder $builder, array $columns): void
     {
+        $model = $builder->getModel();
+
         collect($columns)
             ->filter(function (string $column) {
                 return Str::contains($column, '.');
@@ -46,6 +38,18 @@ class ApiQueryBuilder
                 array_pop($parts);
 
                 return implode('.', $parts);
+            })
+            ->filter(function (string $relationPath) use ($model) {
+                $cursor = $model;
+                foreach (explode('.', $relationPath) as $segment) {
+                    $method = Str::camel($segment);
+                    if (! method_exists($cursor, $method)) {
+                        return false;
+                    }
+                    $cursor = $cursor->{$method}()->getRelated();
+                }
+
+                return true;
             })
             ->each(function (string $column) use ($builder) {
                 $builder->leftJoinRelationship(Str::camel($column));
@@ -85,14 +89,23 @@ class ApiQueryBuilder
     protected function applySorts(): void
     {
         foreach ($this->getSorts() as $column => $dir) {
-            $this->builder->orderBy($this->getSortByColumn($this->getModel(), $column), $dir);
+            $resolved = $this->resolveColumn($this->getModel(), $column, 'sort');
+            if ($resolved === null) {
+                continue;
+            }
+            $this->builder->orderBy($resolved instanceof Closure ? $resolved() : $resolved, $dir);
         }
     }
 
     protected function applyFilters(): void
     {
         foreach ($this->getFilters() as $key => $queries) {
-            $column = $this->getSortByColumn($this->getModel(), $key);
+            $resolved = $this->resolveColumn($this->getModel(), $key, 'filter');
+            if ($resolved === null) {
+                continue;
+            }
+            $column = $resolved instanceof Closure ? $resolved() : $resolved;
+
             if (! is_array($queries)) {
                 $defaultOperator = Str::contains($queries, ',') ? 'in' : 'eq';
                 $queries = [$defaultOperator => $queries];
@@ -342,24 +355,70 @@ class ApiQueryBuilder
         return in_array($column, static::getColumnsForTable($table));
     }
 
-    public function getSortByColumn(Model $model, string $string): string
+    protected function getAllowedColumns(Model $model, string $type): ?array
     {
-        if (strpos($string, '.') === false) {
-            $method = 'sortBy'.Str::studly($string);
-            if (method_exists($model, $method)) {
-                return $model->{$method}();
-            }
-            if ($this->isColumnForTable($table = $model->getTable(), $string)) {
-                return "$table.$string";
-            }
-
-            return $string;
+        $method = $type === 'sort' ? 'sortable' : 'filterable';
+        if (method_exists($model, $method)) {
+            return $model->{$method}();
+        }
+        if (method_exists($model, 'queryable')) {
+            return $model->queryable();
         }
 
-        $parts = explode('.', $string);
-        $first = array_shift($parts);
-        $relationship = $model->{Str::camel($first)}();
+        return null;
+    }
 
-        return $this->getSortByColumn($relationship->getRelated(), implode('.', $parts));
+    public function resolveColumn(Model $model, string $column, string $type): string|Closure|null
+    {
+        if (strpos($column, '.') === false) {
+            // Check sortBy{Column}() on model (backward compat, sort only)
+            if ($type === 'sort') {
+                $method = 'sortBy'.Str::studly($column);
+                if (method_exists($model, $method)) {
+                    return $model->{$method}();
+                }
+            }
+
+            // Check allowlist
+            $allowed = $this->getAllowedColumns($model, $type);
+            if ($allowed !== null) {
+                // Normalize allowlist: string values and key => Closure entries
+                foreach ($allowed as $key => $value) {
+                    if ($value instanceof Closure) {
+                        if ($key === $column) {
+                            return $value;
+                        }
+                    } elseif ($value === $column) {
+                        if ($this->isColumnForTable($model->getTable(), $column)) {
+                            return $model->getTable().'.'.$column;
+                        }
+
+                        return $column;
+                    }
+                }
+
+                return null;
+            }
+
+            // No allowlist — fall back to schema check
+            if ($this->isColumnForTable($table = $model->getTable(), $column)) {
+                return "$table.$column";
+            }
+
+            return null;
+        }
+
+        // Dot-notation: validate relationship exists, traverse to related model, recurse
+        $parts = explode('.', $column);
+        $first = array_shift($parts);
+        $method = Str::camel($first);
+
+        if (! method_exists($model, $method)) {
+            return null;
+        }
+
+        $relationship = $model->{$method}();
+
+        return $this->resolveColumn($relationship->getRelated(), implode('.', $parts), $type);
     }
 }
