@@ -122,16 +122,19 @@ class ApiQueryBuilder
                         $this->builder->where($column, '!=', $query);
                         break;
                     case 'gt':
-                        $this->builder->where($column, '>', $query);
-                        break;
                     case 'lt':
-                        $this->builder->where($column, '<', $query);
-                        break;
                     case 'gte':
-                        $this->builder->where($column, '>=', $query);
-                        break;
                     case 'lte':
-                        $this->builder->where($column, '<=', $query);
+                        if ($this->getModel()->attributeIsDate($key)) {
+                            $query = Carbon::parse($query)->tz(config('app.timezone'))->toDateTimeString();
+                        }
+                        $op = match ($operator) {
+                            'gt' => '>',
+                            'lt' => '<',
+                            'gte' => '>=',
+                            'lte' => '<=',
+                        };
+                        $this->builder->where($column, $op, $query);
                         break;
                     case 'contains':
                         $this->builder->where($column, 'like', "%$query%");

@@ -376,6 +376,30 @@ class QueryBuilderTest extends TestCase
         $this->assertEquals(['jack', 'collin'], $where['values']);
     }
 
+    public function test_comparison_operators_parse_dates_with_timezone()
+    {
+        $oldTz = date_default_timezone_get();
+        config(['app.timezone' => 'America/Chicago']);
+        date_default_timezone_set('America/Chicago');
+
+        try {
+            // Send a date with an offset; it should be converted to America/Chicago
+            $request = Request::create('http://test.com/api?filter[date][gte]=2024-01-15T00:00:00-05:00&filter[date][lt]=2024-01-16T00:00:00-05:00');
+            $this->instance('request', $request);
+
+            $wheres = Model::query()->buildFromRequest()->getQuery()->wheres;
+
+            $this->assertCount(2, $wheres);
+            // -05:00 → America/Chicago (-06:00 in Jan) = 2024-01-14 23:00:00
+            $this->assertEquals('>=', $wheres[0]['operator']);
+            $this->assertEquals('2024-01-14 23:00:00', $wheres[0]['value']);
+            $this->assertEquals('<', $wheres[1]['operator']);
+            $this->assertEquals('2024-01-15 23:00:00', $wheres[1]['value']);
+        } finally {
+            date_default_timezone_set($oldTz);
+        }
+    }
+
     // ── sortBy{Column} backward compat ──────────────────────────────
 
     public function test_sort_by_column_method_on_model()
