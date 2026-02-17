@@ -358,6 +358,27 @@ class ApiQueryBuilder
         return in_array($column, static::getColumnsForTable($table));
     }
 
+    protected function isSelectAlias(string $column): bool
+    {
+        $grammar = $this->builder->getQuery()->getGrammar();
+
+        foreach ($this->builder->getQuery()->columns ?? [] as $select) {
+            $value = $select instanceof \Illuminate\Database\Query\Expression
+                ? $select->getValue($grammar)
+                : $select;
+
+            if (! is_string($value)) {
+                continue;
+            }
+
+            if (preg_match('/\bas\s+[`"\[]?'.preg_quote($column, '/').'\s*[`"\]]?\s*$/i', $value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     protected function getAllowedColumns(Model $model, string $type): ?array
     {
         $method = $type === 'sort' ? 'sortable' : 'filterable';
@@ -403,9 +424,13 @@ class ApiQueryBuilder
                 return null;
             }
 
-            // No allowlist — fall back to schema check
+            // No allowlist — fall back to schema check, then select aliases
             if ($this->isColumnForTable($table = $model->getTable(), $column)) {
                 return "$table.$column";
+            }
+
+            if ($this->isSelectAlias($column)) {
+                return $column;
             }
 
             return null;

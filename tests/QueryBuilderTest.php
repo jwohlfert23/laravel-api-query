@@ -495,6 +495,36 @@ class QueryBuilderTest extends TestCase
 
     // ── Non-GET requests skipped ────────────────────────────────────
 
+    public function test_sort_by_sub_select_alias()
+    {
+        $request = Request::create('http://test.com/api?sort=-distance');
+        $this->instance('request', $request);
+
+        $builder = Model::query()
+            ->selectRaw('*, (SELECT 42) as distance')
+            ->buildFromRequest();
+        $query = $builder->getQuery();
+
+        $this->assertCount(1, $query->orders);
+        $this->assertEquals('distance', $query->orders[0]['column']);
+        $this->assertEquals('desc', $query->orders[0]['direction']);
+    }
+
+    public function test_filter_by_sub_select_alias()
+    {
+        $request = Request::create('http://test.com/api?filter[distance][gt]=5');
+        $this->instance('request', $request);
+
+        $builder = Model::query()
+            ->selectRaw('*, (SELECT 42) as distance')
+            ->buildFromRequest();
+        $query = $builder->getQuery();
+
+        $this->assertCount(1, $query->wheres);
+        $this->assertEquals('distance', $query->wheres[0]['column']);
+        $this->assertEquals('>', $query->wheres[0]['operator']);
+    }
+
     public function test_non_get_request_is_ignored()
     {
         $request = Request::create('http://test.com/api?sort=name&filter[name]=jack', 'POST');
