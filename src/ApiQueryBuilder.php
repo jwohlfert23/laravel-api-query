@@ -414,7 +414,7 @@ class ApiQueryBuilder
                         }
                     } elseif ($value === $column) {
                         if ($this->isColumnForTable($model->getTable(), $column)) {
-                            return $model->getTable().'.'.$column;
+                            return $model->qualifyColumn($column);
                         }
 
                         return $column;
@@ -425,8 +425,8 @@ class ApiQueryBuilder
             }
 
             // No allowlist — fall back to schema check, then select aliases
-            if ($this->isColumnForTable($table = $model->getTable(), $column)) {
-                return "$table.$column";
+            if ($this->isColumnForTable($model->getTable(), $column)) {
+                return $model->qualifyColumn($column);
             }
 
             if ($this->isSelectAlias($column)) {

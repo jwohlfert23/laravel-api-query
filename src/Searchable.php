@@ -30,7 +30,7 @@ trait Searchable
                     while ($relationship = array_shift($parts)) {
                         $model = $model->$relationship()->getRelated();
                     }
-                    $q->orWhere($model->getTable().'.'.$column, 'LIKE', "%$term%");
+                    $q->orWhere($model->qualifyColumn($column), 'LIKE', "%$term%");
                 }
             }
         });
